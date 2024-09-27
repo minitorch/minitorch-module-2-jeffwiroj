@@ -1,4 +1,6 @@
 from dataclasses import dataclass
+import enum
+from signal import valid_signals
 from typing import Any, Iterable, List, Tuple
 
 from typing_extensions import Protocol
@@ -22,7 +24,16 @@ def central_difference(f: Any, *vals: Any, arg: int = 0, epsilon: float = 1e-6) 
     Returns:
         An approximation of $f'_i(x_0, \ldots, x_{n-1})$
     """
-    raise NotImplementedError("Need to include this file from past assignment.")
+    x1 = []
+    x2 = []
+    for i, val in enumerate(vals):
+        if i == arg:
+            x1.append(val + epsilon)
+            x2.append(val - epsilon)
+        else:
+            x1.append(val)
+            x2.append(val)
+    return (f(*x1) - f(*x2)) / (2 * epsilon)
 
 
 variable_count = 1
@@ -60,7 +71,21 @@ def topological_sort(variable: Variable) -> Iterable[Variable]:
     Returns:
         Non-constant Variables in topological order starting from the right.
     """
-    raise NotImplementedError("Need to include this file from past assignment.")
+    visited = set()
+    path = []
+
+    def dfs(scalar):
+        if scalar.is_constant():
+            return
+        if scalar.unique_id in visited:
+            return
+        for ngh in scalar.history.inputs:
+            dfs(ngh)
+        visited.add(scalar.unique_id)
+        path.append(scalar)
+
+    dfs(variable)
+    return path[::-1]
 
 
 def backpropagate(variable: Variable, deriv: Any) -> None:
@@ -74,7 +99,24 @@ def backpropagate(variable: Variable, deriv: Any) -> None:
 
     No return. Should write to its results to the derivative values of each leaf through `accumulate_derivative`.
     """
-    raise NotImplementedError("Need to include this file from past assignment.")
+    path = topological_sort(variable)
+    scalar_deriv = {}
+    for i, scalar in enumerate(path):
+        if i == 0:
+            scalar_deriv[scalar.unique_id] = deriv
+        else:
+            scalar_deriv[scalar.unique_id] = 0
+
+    for scalar in path:
+        dout = scalar_deriv[scalar.unique_id]
+        if scalar.is_leaf():
+            scalar.accumulate_derivative(dout)
+        else:
+            scalar_grad = scalar.chain_rule(dout)
+            for parent, grad in scalar_grad:
+                if parent.is_constant():
+                    continue
+                scalar_deriv[parent.unique_id] += grad
 
 
 @dataclass
